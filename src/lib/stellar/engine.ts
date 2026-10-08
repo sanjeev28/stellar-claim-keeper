@@ -12,6 +12,7 @@ import {
 import { claimWindow, describe, type HorizonPredicate } from "./predicate";
 import { diagnose, txCode } from "./errors";
 import type { NetworkPreset } from "./networks";
+import { preciseSleep } from "./timer";
 
 export type LogLevel = "info" | "ok" | "warn" | "error" | "net";
 export type LogEntry = { id: number; at: number; level: LogLevel; msg: string; details?: string[]; hash?: string };
@@ -50,14 +51,17 @@ export type EngineConfig = {
   mergeAccount: boolean;
 };
 
-const sleep = (ms: number, signal?: AbortSignal) =>
-  new Promise<void>((res, rej) => {
-    const t = setTimeout(res, ms);
-    signal?.addEventListener("abort", () => {
-      clearTimeout(t);
-      rej(new DOMException("aborted", "AbortError"));
-    });
-  });
+const sleep = preciseSleep;
+const SUBMIT_TIMEOUT_MS = 1500;
+
+/** Fire keepalive HEAD pings so TCP/TLS handshakes are hot before unlock. */
+export function prewarm(horizons: string[]) {
+  return Promise.all(
+    horizons.map((h) =>
+      fetch(h, { method: "HEAD", mode: "no-cors", cache: "no-store", keepalive: true }).catch(() => null),
+    ),
+  );
+}
 
 const assetFromString = (s: string) => {
   if (s === "native") return Asset.native();
@@ -138,7 +142,12 @@ type SubmitResult =
   | { ok: true; hash: string; ledger: number; horizon: string }
   | { ok: false; code?: string | undefined; err: unknown; status?: number | undefined; horizon: string };
 
-async function rawSubmit(horizon: string, xdr: string, signal: AbortSignal): Promise<SubmitResult> {
+async function rawSubmit(horizon: string, xdr: string, outer: AbortSignal): Promise<SubmitResult> {
+  const ctl = new AbortController();
+  const onAbort = () => ctl.abort();
+  outer.addEventListener("abort", onAbort);
+  const timer = setTimeout(() => ctl.abort(), SUBMIT_TIMEOUT_MS);
+  const signal = ctl.signal;
   try {
     const r = await fetch(`${horizon.replace(/\/$/, "")}/transactions`, {
       method: "POST",
@@ -152,7 +161,11 @@ async function rawSubmit(horizon: string, xdr: string, signal: AbortSignal): Pro
     const err = { response: { status: r.status, data } };
     return { ok: false, code: txCode(err), err, status: r.status, horizon };
   } catch (err) {
+    if (outer.aborted) throw err;
     return { ok: false, err, horizon };
+  } finally {
+    clearTimeout(timer);
+    outer.removeEventListener("abort", onAbort);
   }
 }
 
@@ -239,7 +252,7 @@ export class RecoveryEngine {
     // Wait phase with periodic latency/ledger sampling
     const fireAt = unlockAt * 1000 - cfg.leadMs;
     let lastSample = 0;
-    while (Date.now() < fireAt - 8000) {
+    while (Date.now() < fireAt - 10000) {
       if (Date.now() - lastSample > 30000) {
         lastSample = Date.now();
         for (const h of cfg.horizons) {
@@ -248,16 +261,25 @@ export class RecoveryEngine {
             .catch(() => log("warn", `${h} unreachable`));
         }
       }
-      await sleep(Math.min(1000, fireAt - 8000 - Date.now()), signal);
+      await sleep(Math.max(0, Math.min(1000, fireAt - 10000 - Date.now())), signal);
     }
+
+    // T-10s: pre-warm all endpoints, keep them hot every 2s until fire.
+    log("net", `Pre-warming ${cfg.horizons.length} endpoint(s)`);
+    await prewarm(cfg.horizons);
 
     // Pre-sign ~8s before with fresh sequence so firing is pure I/O.
     let perOpFee = cfg.perOpFee;
     let built = await this.build(balance, unlockAt, perOpFee);
     log("info", `Pre-signed. Hash ${built.hash.slice(0, 12)}…`, { hash: built.hash });
-    // warm TCP/TLS connections
-    await Promise.all(cfg.horizons.map((h) => fetch(h, { cache: "no-store" }).catch(() => null)));
-    while (Date.now() < fireAt) await sleep(Math.max(0, Math.min(50, fireAt - Date.now())), signal);
+    let lastWarm = Date.now();
+    while (Date.now() < fireAt) {
+      if (Date.now() - lastWarm > 2000) {
+        lastWarm = Date.now();
+        void prewarm(cfg.horizons);
+      }
+      await sleep(Math.max(0, Math.min(20, fireAt - Date.now())), signal);
+    }
 
     log("warn", `FIRING burst at T${((Date.now() - unlockAt * 1000) / 1000).toFixed(2)}s`);
     const deadline = (unlockAt + cfg.windowSec) * 1000;

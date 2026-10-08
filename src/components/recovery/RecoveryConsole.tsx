@@ -209,6 +209,10 @@ export function RecoveryConsole() {
               <Label>Vault destination (G… or muxed M…)</Label>
               <Input className="font-mono text-xs" value={destination} onChange={(e) => setDestination(e.target.value)} />
               {destination && !isValidDestination(destination) && <p className="text-xs text-destructive">Invalid address</p>}
+              <div className="flex items-center justify-between">
+                <Label className="text-xs text-muted-foreground">Remember this address on this device</Label>
+                <Switch checked={rememberDest} onCheckedChange={setRememberDest} />
+              </div>
             </div>
             <Button onClick={loadBalance} disabled={!balanceId || loading} variant="secondary" className="w-full">
               {loading ? "Fetching on-chain data…" : "Fetch balance & predicate"}

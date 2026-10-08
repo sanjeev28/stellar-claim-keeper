@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -41,6 +41,7 @@ export function RecoveryConsole() {
   const [balanceId, setBalanceId] = useState("");
   const [credential, setCredential] = useState("");
   const [destination, setDestination] = useState("");
+  const [rememberDest, setRememberDest] = useState(true);
   const [claimantPk, setClaimantPk] = useState<string | null>(null);
   const [balance, setBalance] = useState<BalanceInfo | null>(null);
   const [fees, setFees] = useState<FeeStats | null>(null);

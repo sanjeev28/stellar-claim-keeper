@@ -1,5 +1,4 @@
 import { useCallback, useMemo, useRef, useState } from "react";
-import { Keypair } from "@stellar/stellar-sdk";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -318,5 +317,3 @@ export function RecoveryConsole() {
   );
 }
 
-// Keep tree-shaking from dropping Keypair type import in some bundlers
-void Keypair;

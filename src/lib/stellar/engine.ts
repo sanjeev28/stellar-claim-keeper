@@ -1,3 +1,4 @@
+import "@/lib/stellar/polyfill";
 import { Buffer } from "buffer";
 import {
   Asset,

@@ -1,3 +1,4 @@
+import "@/lib/stellar/polyfill";
 import { createFileRoute } from "@tanstack/react-router";
 import { RecoveryConsole } from "@/components/recovery/RecoveryConsole";
 

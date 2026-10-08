@@ -1,3 +1,4 @@
+import "@/lib/stellar/polyfill";
 import { Keypair, StrKey } from "@stellar/stellar-sdk";
 import { mnemonicToSeed, validateMnemonic, wordlists } from "bip39";
 

@@ -65,6 +65,20 @@ export function RecoveryConsole() {
     setLogs((l) => [...l.slice(-500), { id: idRef.current++, at: Date.now(), level, msg, ...extra }]);
   }, []);
 
+  // Restore saved vault destination on load
+  useEffect(() => {
+    const saved = localStorage.getItem("vaultline.destination");
+    if (saved) setDestination(saved);
+    if (localStorage.getItem("vaultline.rememberDest") === "0") setRememberDest(false);
+  }, []);
+
+  // Persist (or clear) the vault destination whenever it changes
+  useEffect(() => {
+    if (rememberDest && destination.trim()) localStorage.setItem("vaultline.destination", destination.trim());
+    if (!rememberDest) localStorage.removeItem("vaultline.destination");
+    localStorage.setItem("vaultline.rememberDest", rememberDest ? "1" : "0");
+  }, [destination, rememberDest]);
+
   const horizons = useMemo(
     () => [network.horizon, ...extraHorizons.split(/[\s,]+/).filter((h) => /^https?:\/\//.test(h))],
     [network, extraHorizons],

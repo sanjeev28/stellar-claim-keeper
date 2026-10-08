@@ -142,7 +142,7 @@ export class RecoveryEngine {
   }
 
   private get primary() {
-    return this.servers[0];
+    return this.servers[0]!;
   }
 
   private async build(balance: BalanceInfo, unlockAt: number, perOpFee: number): Promise<{ tx: Transaction | FeeBumpTransaction; hash: string }> {

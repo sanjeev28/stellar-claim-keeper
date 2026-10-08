@@ -61,6 +61,13 @@ export async function keypairFromCredential(
   return Keypair.fromRawEd25519Seed(raw as unknown as Buffer);
 }
 
+/** true = checksum ok, false = checksum failed, null = not a mnemonic-shaped input. */
+export function mnemonicChecksumOk(credential: string): boolean | null {
+  const parts = credential.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (![12, 15, 18, 21, 24].includes(parts.length)) return null;
+  return validateMnemonic(parts.join(" "));
+}
+
 export function isValidDestination(addr: string) {
   const a = addr.trim();
   return StrKey.isValidEd25519PublicKey(a) || StrKey.isValidMed25519PublicKey(a);

@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Countdown } from "./Countdown";
 import { Console } from "./Console";
 import { NETWORKS, toStroops, toUnits } from "@/lib/stellar/networks";
-import { isValidDestination, keypairFromCredential } from "@/lib/stellar/keys";
+import { isValidDestination, keypairFromCredential, mnemonicChecksumOk } from "@/lib/stellar/keys";
 import {
   RecoveryEngine,
   fetchClaimableBalances,
@@ -100,6 +100,9 @@ export function RecoveryConsole() {
       const kp = await keypairFromCredential(credential, network.coinType);
       const pk = kp.publicKey();
       setClaimantPk(pk);
+      if (mnemonicChecksumOk(credential) === false) {
+        log("warn", "Passphrase checksum failed — deriving anyway. Verify the derived address below matches your wallet before arming.");
+      }
       const [list, f] = await Promise.all([
         fetchClaimableBalances(network.horizon, pk, network.nativeCode),
         fetchFeeStats(network.horizon),

@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
+import { setPreciseInterval } from "@/lib/stellar/timer";
 
 export function Countdown({ target, label }: { target: number | null; label: string }) {
   const [now, setNow] = useState<number | null>(null);
   useEffect(() => {
     setNow(Date.now());
-    const t = setInterval(() => setNow(Date.now()), 100);
-    return () => clearInterval(t);
+    return setPreciseInterval(() => setNow(Date.now()), 100);
   }, []);
   if (!target || now === null)
     return <div className="font-mono text-5xl text-muted-foreground">--:--:--</div>;

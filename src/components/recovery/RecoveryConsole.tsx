@@ -8,10 +8,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Countdown } from "./Countdown";
 import { Console } from "./Console";
-import { NETWORKS, toStroops, toUnits } from "@/lib/stellar/networks";
+import { CUSTOM_FEE_DEFAULT, CUSTOM_FEE_MAX, ENDPOINT_HINTS, ESCALATION_CAP_DEFAULT, FEE_TIERS, NETWORKS, toStroops, toUnits } from "@/lib/stellar/networks";
+import { holdAwake } from "@/lib/stellar/timer";
 import { isValidDestination, keypairFromCredential, mnemonicChecksumOk } from "@/lib/stellar/keys";
 import {
   RecoveryEngine,
+  fetchBalance,
   fetchClaimableBalances,
   fetchFeeStats,
   type BalanceInfo,
@@ -21,7 +23,7 @@ import {
 } from "@/lib/stellar/engine";
 import { diagnose } from "@/lib/stellar/errors";
 
-type Tier = "standard" | "high" | "max" | "custom";
+type Tier = keyof typeof FEE_TIERS | "custom";
 
 function Panel({ title, step, children }: { title: string; step: string; children: React.ReactNode }) {
   return (
@@ -46,14 +48,15 @@ export function RecoveryConsole() {
   const [claimantPk, setClaimantPk] = useState<string | null>(null);
   const [balance, setBalance] = useState<BalanceInfo | null>(null);
   const [fees, setFees] = useState<FeeStats | null>(null);
-  const [tier, setTier] = useState<Tier>("high");
-  const [customFee, setCustomFee] = useState("0.1");
+  const [tier, setTier] = useState<Tier>("aggressive");
+  const [customFee, setCustomFee] = useState(String(CUSTOM_FEE_DEFAULT));
   const [feeBump, setFeeBump] = useState(true);
   const [feeCredential, setFeeCredential] = useState("");
   const [escalate, setEscalate] = useState(true);
-  const [maxFee, setMaxFee] = useState("1");
+  const [maxFee, setMaxFee] = useState(String(ESCALATION_CAP_DEFAULT));
+  const [directId, setDirectId] = useState("");
   const [leadMs, setLeadMs] = useState("1500");
-  const [burstMs, setBurstMs] = useState("250");
+  const [burstMs, setBurstMs] = useState("90");
   const [mergeAccount, setMergeAccount] = useState(false);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [running, setRunning] = useState(false);
@@ -87,11 +90,12 @@ export function RecoveryConsole() {
 
   const baseFee = fees?.min ?? (network.id.startsWith("pi") ? 100000 : 100);
   const tierFees: Record<Exclude<Tier, "custom">, number> = {
-    standard: Math.max(baseFee, fees?.p50 ?? baseFee),
-    high: Math.max(baseFee * 10, fees?.p99 ?? 0),
-    max: Math.max(baseFee * 100, (fees?.p99 ?? 0) * 5),
+    standard: Math.max(baseFee, toStroops(FEE_TIERS.standard.perOp)),
+    aggressive: Math.max(baseFee, toStroops(FEE_TIERS.aggressive.perOp)),
+    ultra: Math.max(baseFee, toStroops(FEE_TIERS.ultra.perOp)),
   };
-  const perOpFee = tier === "custom" ? toStroops(Number(customFee) || 0) : tierFees[tier];
+  const customUnits = Math.min(CUSTOM_FEE_MAX, Math.max(0, Number(customFee) || 0));
+  const perOpFee = tier === "custom" ? Math.max(baseFee, toStroops(customUnits)) : tierFees[tier];
   const opCount = (mergeAccount ? 3 : 2) + (feeBump ? 1 : 0);
 
   async function loadBalance() {
@@ -104,8 +108,11 @@ export function RecoveryConsole() {
       if (mnemonicChecksumOk(credential) === false) {
         log("warn", "Passphrase checksum failed — deriving anyway. Verify the derived address below matches your wallet before arming.");
       }
+      const id = directId.trim();
       const [list, f] = await Promise.all([
-        fetchClaimableBalances(network.horizon, pk, network.nativeCode),
+        id
+          ? fetchBalance(network.horizon, id, pk, network.nativeCode).then((b) => [b])
+          : fetchClaimableBalances(network.horizon, pk, network.nativeCode),
         fetchFeeStats(network.horizon),
       ]);
       setCandidates(list);
@@ -141,13 +148,15 @@ export function RecoveryConsole() {
     }, 800);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [credential, networkId]);
+  }, [credential, networkId, directId]);
 
   async function arm() {
     if (!balance) return;
     if (!isValidDestination(destination)) return log("error", "Vault destination must be a valid G… or M… address.");
     setResult(null);
     setRunning(true);
+    const release = await holdAwake();
+    log("info", "Background-safe timers + wake lock engaged.");
     try {
       const claimant = await keypairFromCredential(credential, network.coinType);
       const feeSource = feeBump && feeCredential.trim() ? await keypairFromCredential(feeCredential, network.coinType) : undefined;
@@ -164,9 +173,9 @@ export function RecoveryConsole() {
           feeBump,
           feeSource,
           escalate,
-          maxPerOpFee: toStroops(Number(maxFee) || 1),
+          maxPerOpFee: Math.max(perOpFee, toStroops(Number(maxFee) || ESCALATION_CAP_DEFAULT)),
           leadMs: Number(leadMs) || 0,
-          burstIntervalMs: Math.max(50, Number(burstMs) || 250),
+          burstIntervalMs: Math.max(50, Number(burstMs) || 90),
           windowSec: 600,
           mergeAccount,
         },
@@ -183,6 +192,7 @@ export function RecoveryConsole() {
         log("error", d.title, { details: d.details });
       }
     } finally {
+      release();
       setRunning(false);
       engineRef.current = null;
     }
@@ -234,6 +244,10 @@ export function RecoveryConsole() {
                 <Switch checked={rememberDest} onCheckedChange={setRememberDest} />
               </div>
             </div>
+            <div className="space-y-1.5">
+              <Label>Direct claimable balance ID (optional, fastest)</Label>
+              <Input className="font-mono text-xs" placeholder="00000000… — skips scanning all balances" value={directId} onChange={(e) => setDirectId(e.target.value)} />
+            </div>
             <Button onClick={loadBalance} disabled={!credential.trim() || loading} variant="secondary" className="w-full">
               {loading ? "Scanning network for your balances…" : "Refresh balances"}
             </Button>
@@ -274,13 +288,13 @@ export function RecoveryConsole() {
 
           <Panel step="02" title="Priority fee">
             <div className="grid grid-cols-4 gap-2">
-              {(["standard", "high", "max", "custom"] as Tier[]).map((t) => (
+              {(["standard", "aggressive", "ultra", "custom"] as Tier[]).map((t) => (
                 <button
                   key={t}
                   onClick={() => setTier(t)}
                   className={`rounded-md border p-2 text-left transition ${tier === t ? "border-primary bg-primary/10" : "hover:bg-accent"}`}
                 >
-                  <div className="text-xs font-semibold uppercase">{t}</div>
+                  <div className="text-xs font-semibold uppercase">{t === "custom" ? "Custom" : FEE_TIERS[t].label}</div>
                   <div className="font-mono text-[11px] text-muted-foreground">
                     {t === "custom" ? "manual" : `${toUnits(tierFees[t as Exclude<Tier, "custom">])}/op`}
                   </div>
@@ -289,8 +303,8 @@ export function RecoveryConsole() {
             </div>
             {tier === "custom" && (
               <div className="space-y-1.5">
-                <Label>Custom fee per operation ({network.nativeCode})</Label>
-                <Input type="number" step="0.01" value={customFee} onChange={(e) => setCustomFee(e.target.value)} />
+                <Label>Custom fee per operation ({network.nativeCode}, max {CUSTOM_FEE_MAX})</Label>
+                <Input type="number" step="0.5" min={0} max={CUSTOM_FEE_MAX} value={customFee} onChange={(e) => setCustomFee(e.target.value)} />
               </div>
             )}
             <div className="rounded-md border bg-background p-3 font-mono text-xs">
@@ -330,9 +344,13 @@ export function RecoveryConsole() {
               <div className="space-y-1.5"><Label>Fire lead (ms before unlock)</Label><Input type="number" value={leadMs} onChange={(e) => setLeadMs(e.target.value)} /></div>
               <div className="space-y-1.5"><Label>Burst interval (ms)</Label><Input type="number" value={burstMs} onChange={(e) => setBurstMs(e.target.value)} /></div>
             </div>
-            <div className="space-y-1.5">
-              <Label>Additional endpoints (parallel broadcast)</Label>
-              <Textarea rows={2} className="font-mono text-xs" placeholder="https://your-own-horizon.example" value={extraHorizons} onChange={(e) => setExtraHorizons(e.target.value)} />
+            <div className="space-y-1.5 rounded-md border border-primary/40 bg-primary/5 p-3">
+              <Label className="text-primary">Additional endpoints — parallel broadcast ({horizons.length} active)</Label>
+              <Textarea rows={3} className="font-mono text-xs" placeholder={ENDPOINT_HINTS.join("\n")} value={extraHorizons} onChange={(e) => setExtraHorizons(e.target.value)} />
+              <p className="text-xs text-muted-foreground">One per line. Every endpoint receives the same signed envelope at the same moment. Example core nodes: {ENDPOINT_HINTS.join(", ")}</p>
+              {horizons.some((h) => h.startsWith("http://")) && typeof window !== "undefined" && window.location.protocol === "https:" && (
+                <p className="text-xs text-warning">Plain http:// endpoints are blocked by the browser on this secure page. They work when the app is opened over http (e.g. run locally); otherwise they'll simply fail without stopping the other endpoints.</p>
+              )}
             </div>
             <div className="flex items-center justify-between">
               <div>

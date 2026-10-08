@@ -1,3 +1,4 @@
+import { Buffer } from "buffer";
 import {
   Asset,
   Horizon,
@@ -20,7 +21,7 @@ export type BalanceInfo = {
   amount: string;
   asset: Asset;
   assetLabel: string;
-  sponsor?: string;
+  sponsor?: string | undefined;
   claimant: string;
   predicateText: string;
   unlockAt: number | null;
@@ -38,7 +39,7 @@ export type EngineConfig = {
   destination: string;
   perOpFee: number; // stroops
   feeBump: boolean;
-  feeSource?: Keypair;
+  feeSource?: Keypair | undefined;
   escalate: boolean;
   maxPerOpFee: number; // stroops cap for escalation
   leadMs: number; // start firing this many ms before unlock
@@ -59,14 +60,15 @@ const sleep = (ms: number, signal?: AbortSignal) =>
 const assetFromString = (s: string) => {
   if (s === "native") return Asset.native();
   const [code, issuer] = s.split(":");
-  return new Asset(code, issuer);
+  return new Asset(code ?? "", issuer);
 };
 
 export async function fetchBalance(horizon: string, id: string, claimant: string, nativeCode: string): Promise<BalanceInfo> {
   const server = new Horizon.Server(horizon);
   const cb = await server.claimableBalances().claimableBalance(id.trim()).call();
-  const createdAt = Math.floor(Date.parse(cb.last_modified_time ?? new Date().toISOString()) / 1000);
+  const createdAt = Math.floor(Date.parse((cb as unknown as { last_modified_time?: string }).last_modified_time ?? new Date().toISOString()) / 1000);
   const entry = cb.claimants.find((c) => c.destination === claimant) ?? cb.claimants[0];
+  if (!entry) throw new Error("Balance has no claimants");
   const pred = entry.predicate as unknown as HorizonPredicate;
   const w = claimWindow(pred, createdAt, Math.floor(Date.now() / 1000));
   const asset = assetFromString(cb.asset);
@@ -105,7 +107,7 @@ export async function measureLatency(horizon: string) {
 
 type SubmitResult =
   | { ok: true; hash: string; ledger: number; horizon: string }
-  | { ok: false; code?: string; err: unknown; status?: number; horizon: string };
+  | { ok: false; code?: string | undefined; err: unknown; status?: number | undefined; horizon: string };
 
 async function rawSubmit(horizon: string, xdr: string, signal: AbortSignal): Promise<SubmitResult> {
   try {
@@ -159,12 +161,12 @@ export class RecoveryEngine {
     const inner = builder.build();
     inner.sign(cfg.claimant);
     this.log("info", `Built atomic envelope seq=${inner.sequence} ops=${opCount} minTime=${unlockAt}`);
-    if (!cfg.feeBump) return { tx: inner, hash: inner.hash().toString("hex") };
+    if (!cfg.feeBump) return { tx: inner, hash: Buffer.from(inner.hash()).toString("hex") };
     const feeKp = cfg.feeSource ?? cfg.claimant;
     const fb = TransactionBuilder.buildFeeBumpTransaction(feeKp, String(perOpFee), inner, cfg.network.passphrase);
     fb.sign(feeKp);
     this.log("info", `Wrapped in fee-bump: ${perOpFee} stroops/op, total max ${(perOpFee * (opCount + 1)) / 1e7}`);
-    return { tx: fb, hash: fb.hash().toString("hex") };
+    return { tx: fb, hash: Buffer.from(fb.hash()).toString("hex") };
   }
 
   private async pollHash(hash: string, until: number) {
@@ -241,7 +243,7 @@ export class RecoveryEngine {
         return { hash: win.hash, ledger: win.ledger };
       }
       const codes = results.map((r) => (r.ok ? "ok" : (r.code ?? `http${r.status ?? "-"}`)));
-      const first = results[0] as Extract<SubmitResult, { ok: false }>;
+      const first = results.find((r) => !r.ok) as Extract<SubmitResult, { ok: false }>;
       if (codes.every((c) => c === "tx_too_early")) {
         if (attempt % 10 === 1) log("info", `#${attempt} tx_too_early — ledger not yet past unlock, re-firing`);
         await sleep(cfg.burstIntervalMs, signal);

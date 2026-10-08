@@ -11,7 +11,7 @@ import { NETWORKS, toStroops, toUnits } from "@/lib/stellar/networks";
 import { isValidDestination, keypairFromCredential } from "@/lib/stellar/keys";
 import {
   RecoveryEngine,
-  fetchBalance,
+  fetchClaimableBalances,
   fetchFeeStats,
   type BalanceInfo,
   type FeeStats,
@@ -208,10 +208,6 @@ export function RecoveryConsole() {
       <div className="grid gap-6 lg:grid-cols-[1fr_1.1fr]">
         <div className="space-y-6">
           <Panel step="01" title="Target & credentials">
-            <div className="space-y-1.5">
-              <Label>Claimable Balance ID</Label>
-              <Input className="font-mono text-xs" placeholder="00000000…" value={balanceId} onChange={(e) => setBalanceId(e.target.value)} />
-            </div>
             <div className="space-y-1.5">
               <Label>Claimant secret key or 24-word passphrase</Label>
               <Textarea

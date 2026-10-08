@@ -230,9 +230,34 @@ export function RecoveryConsole() {
                 <Switch checked={rememberDest} onCheckedChange={setRememberDest} />
               </div>
             </div>
-            <Button onClick={loadBalance} disabled={!balanceId || loading} variant="secondary" className="w-full">
-              {loading ? "Fetching on-chain data…" : "Fetch balance & predicate"}
+            <Button onClick={loadBalance} disabled={!credential.trim() || loading} variant="secondary" className="w-full">
+              {loading ? "Scanning network for your balances…" : "Refresh balances"}
             </Button>
+            {candidates.length > 1 && (
+              <div className="space-y-1.5">
+                <Label>Select balance to recover</Label>
+                <div className="max-h-44 space-y-1 overflow-y-auto">
+                  {candidates.map((c) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => setBalance(c)}
+                      className={`w-full rounded-md border px-3 py-2 text-left font-mono text-xs transition-colors ${
+                        balance?.id === c.id ? "border-primary bg-primary/10" : "bg-background hover:border-primary/50"
+                      }`}
+                    >
+                      <div className="flex justify-between">
+                        <span className="text-foreground">{c.amount} {c.assetLabel}</span>
+                        <span className={c.claimableNow ? "text-success" : "text-warning"}>
+                          {c.claimableNow ? "CLAIMABLE" : c.unlockAt ? new Date(c.unlockAt * 1000).toISOString() : "LOCKED"}
+                        </span>
+                      </div>
+                      <div className="truncate text-muted-foreground">{c.id}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             {balance && (
               <dl className="grid grid-cols-2 gap-3 rounded-md border bg-background p-3 font-mono text-xs">
                 <div><dt className="text-muted-foreground">Amount</dt><dd className="text-base text-foreground">{balance.amount} {balance.assetLabel}</dd></div>

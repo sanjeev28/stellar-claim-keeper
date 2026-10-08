@@ -100,6 +100,9 @@ export function RecoveryConsole() {
       const kp = await keypairFromCredential(credential, network.coinType);
       const pk = kp.publicKey();
       setClaimantPk(pk);
+      if (mnemonicChecksumOk(credential) === false) {
+        log("warn", "Passphrase checksum failed — deriving anyway. Verify the derived address below matches your wallet before arming.");
+      }
       const [list, f] = await Promise.all([
         fetchClaimableBalances(network.horizon, pk, network.nativeCode),
         fetchFeeStats(network.horizon),

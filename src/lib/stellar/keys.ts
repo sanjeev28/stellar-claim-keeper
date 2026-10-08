@@ -51,7 +51,10 @@ export async function keypairFromCredential(
     throw new Error(`Not in the BIP-39 wordlist: ${unknown.slice(0, 5).join(", ")}${unknown.length > 5 ? "…" : ""} — check spelling.`);
   }
   if (!validateMnemonic(words)) {
-    throw new Error("Passphrase checksum failed — one or more words are wrong or in the wrong order.");
+    // Some wallets (incl. certain Pi wallet exports) produce passphrases whose
+    // checksum doesn't validate. All words are in the BIP-39 wordlist, so derive
+    // anyway — the user verifies correctness via the derived public address.
+    console.warn("[vaultline] Mnemonic checksum failed; deriving anyway (lenient mode).");
   }
   const seed = new Uint8Array(await mnemonicToSeed(words));
   const raw = await deriveEd25519(seed, [44, coinType, accountIndex]);

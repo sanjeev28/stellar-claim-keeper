@@ -76,7 +76,7 @@
 .rail-caption { margin: 42px 10px 14px; color: var(--muted-foreground); font-size: 12px; }
 .rail-navigation { display: flex; flex-direction: column; gap: 8px; }
 .rail-tab { height: 46px; justify-content: flex-start; padding: 0 12px; color: var(--muted-foreground); }
-.rail-tab-active { background: var(--accent); color: var(--primary); }
+.rail-tab-active, .rail-tab-active:hover { background: var(--accent); color: var(--primary); }
 .rail-number { margin-left: auto; font-size: 12px; opacity: .6; }
 .rail-bottom { display: flex; align-items: center; gap: 10px; margin: auto 12px 0; padding-top: 40px; color: var(--muted-foreground); font-size: 12px; }
 .workspace-body { min-width: 0; }
@@ -90,7 +90,7 @@
 .settings-panel label { line-height: 1.6; }
 .settings-panel .flex.items-center.justify-between { gap: 16px; }
 .settings-panel [role="switch"] { flex-shrink: 0; }
-.execution-area { border-left: 1px solid var(--border); min-width: 0; }
+.execution-area { border-left: 1px solid var(--border); min-width: 0; position: sticky; top: 0; align-self: start; }
 .execution-timer { padding: 32px 28px; border-bottom: 1px solid var(--border); background: var(--card); }
 .countdown-display { font-family: var(--font-display); font-size: 40px; font-weight: 500; font-variant-numeric: tabular-nums; line-height: 1.4; min-height: 64px; }
 .execution-journal { padding: 24px 28px; }
@@ -137,6 +137,8 @@
   .workspace-content { display: flex; flex-direction: column; }
   .settings-area { padding: 24px 18px; }
   .execution-area { border-left: 0; border-top: 1px solid var(--border); }
+  .execution-area { position: static; align-self: stretch; }
+  #settings-03 > div:last-child > .grid label { min-height: 48px; display: block; }
   .execution-timer, .execution-journal { padding: 24px 18px; }
   .countdown-display { font-size: 40px; }
   .journal-output { height: 260px; }

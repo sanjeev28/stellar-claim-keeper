@@ -8,7 +8,7 @@ export function Countdown({ target, label }: { target: number | null; label: str
     return setPreciseInterval(() => setNow(Date.now()), 100);
   }, []);
   if (!target || now === null)
-    return <div className="font-mono text-5xl text-muted-foreground">--:--:--</div>;
+    return <div className="countdown-display text-muted-foreground">--:--:--</div>;
   const diff = target * 1000 - now;
   const past = diff <= 0;
   const abs = Math.abs(diff);
@@ -21,13 +21,13 @@ export function Countdown({ target, label }: { target: number | null; label: str
   return (
     <div>
       <div className="text-xs uppercase tracking-widest text-muted-foreground">{past ? "Unlocked" : label}</div>
-      <div className={`font-mono text-4xl font-semibold tabular-nums md:text-5xl ${past ? "text-success" : "text-primary"}`}>
+      <div className={`countdown-display ${past ? "text-success" : "text-primary"}`}>
         {past ? "+" : ""}
-        {d > 0 && `${d}d `}
+        {d > 0 && <span className="block text-xl">{d}d</span>}
         {p(h)}:{p(m)}:{p(s)}
         <span className="text-2xl opacity-60">.{ds}</span>
       </div>
-      <div className="mt-1 font-mono text-xs text-muted-foreground">{new Date(target * 1000).toISOString()}</div>
+      <div className="mt-2 break-all text-xs text-muted-foreground">{new Date(target * 1000).toISOString()}</div>
     </div>
   );
 }

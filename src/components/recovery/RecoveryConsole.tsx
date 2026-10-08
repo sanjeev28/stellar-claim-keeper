@@ -11,7 +11,7 @@ import { NETWORKS, toStroops, toUnits } from "@/lib/stellar/networks";
 import { isValidDestination, keypairFromCredential } from "@/lib/stellar/keys";
 import {
   RecoveryEngine,
-  fetchBalance,
+  fetchClaimableBalances,
   fetchFeeStats,
   type BalanceInfo,
   type FeeStats,
@@ -38,7 +38,7 @@ export function RecoveryConsole() {
   const [networkId, setNetworkId] = useState("pi-mainnet");
   const network = NETWORKS.find((n) => n.id === networkId)!;
   const [extraHorizons, setExtraHorizons] = useState("");
-  const [balanceId, setBalanceId] = useState("");
+  const [candidates, setCandidates] = useState<BalanceInfo[]>([]);
   const [credential, setCredential] = useState("");
   const [destination, setDestination] = useState("");
   const [rememberDest, setRememberDest] = useState(true);
@@ -94,22 +94,27 @@ export function RecoveryConsole() {
   const opCount = (mergeAccount ? 3 : 2) + (feeBump ? 1 : 0);
 
   async function loadBalance() {
+    if (!credential.trim()) return;
     setLoading(true);
     try {
-      let pk = claimantPk;
-      if (credential.trim()) {
-        const kp = await keypairFromCredential(credential, network.coinType);
-        pk = kp.publicKey();
-        setClaimantPk(pk);
-      }
-      const [b, f] = await Promise.all([
-        fetchBalance(network.horizon, balanceId, pk ?? "", network.nativeCode),
+      const kp = await keypairFromCredential(credential, network.coinType);
+      const pk = kp.publicKey();
+      setClaimantPk(pk);
+      const [list, f] = await Promise.all([
+        fetchClaimableBalances(network.horizon, pk, network.nativeCode),
         fetchFeeStats(network.horizon),
       ]);
-      setBalance(b);
+      setCandidates(list);
       setFees(f);
-      log("ok", `Loaded balance ${b.amount} ${b.assetLabel} · predicate ${b.predicateText}`);
-      if (pk && b.claimant !== pk) log("error", `Your key ${pk.slice(0, 8)}… is NOT a claimant on this balance.`);
+      if (list.length === 0) {
+        setBalance(null);
+        log("warn", `No claimable balances found for ${pk.slice(0, 8)}… on ${network.label}.`);
+      } else {
+        const target = (list.length === 1 ? list[0] : (list.find((b) => b.claimableNow) ?? list[0]))!;
+        setBalance(target);
+        log("ok", `Found ${list.length} claimable balance${list.length > 1 ? "s" : ""} for ${pk.slice(0, 8)}…`);
+        log("ok", `Selected ${target.amount} ${target.assetLabel} · predicate ${target.predicateText}`);
+      }
       log("net", `Fee stats: base ${f.min} · p50 ${f.p50} · p99 ${f.p99} stroops · capacity ${f.capacity}`);
     } catch (e) {
       const d = diagnose(e);
@@ -118,6 +123,21 @@ export function RecoveryConsole() {
       setLoading(false);
     }
   }
+
+  // Auto-discover balances as soon as a valid key/passphrase is entered
+  useEffect(() => {
+    setClaimantPk(null);
+    setCandidates([]);
+    setBalance(null);
+    if (!credential.trim()) return;
+    const t = setTimeout(() => {
+      keypairFromCredential(credential, network.coinType)
+        .then(() => loadBalance())
+        .catch(() => {}); // incomplete/invalid input — wait for more typing
+    }, 800);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [credential, networkId]);
 
   async function arm() {
     if (!balance) return;
@@ -189,10 +209,6 @@ export function RecoveryConsole() {
         <div className="space-y-6">
           <Panel step="01" title="Target & credentials">
             <div className="space-y-1.5">
-              <Label>Claimable Balance ID</Label>
-              <Input className="font-mono text-xs" placeholder="00000000…" value={balanceId} onChange={(e) => setBalanceId(e.target.value)} />
-            </div>
-            <div className="space-y-1.5">
               <Label>Claimant secret key or 24-word passphrase</Label>
               <Textarea
                 className="font-mono text-xs"
@@ -214,9 +230,34 @@ export function RecoveryConsole() {
                 <Switch checked={rememberDest} onCheckedChange={setRememberDest} />
               </div>
             </div>
-            <Button onClick={loadBalance} disabled={!balanceId || loading} variant="secondary" className="w-full">
-              {loading ? "Fetching on-chain data…" : "Fetch balance & predicate"}
+            <Button onClick={loadBalance} disabled={!credential.trim() || loading} variant="secondary" className="w-full">
+              {loading ? "Scanning network for your balances…" : "Refresh balances"}
             </Button>
+            {candidates.length > 1 && (
+              <div className="space-y-1.5">
+                <Label>Select balance to recover</Label>
+                <div className="max-h-44 space-y-1 overflow-y-auto">
+                  {candidates.map((c) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => setBalance(c)}
+                      className={`w-full rounded-md border px-3 py-2 text-left font-mono text-xs transition-colors ${
+                        balance?.id === c.id ? "border-primary bg-primary/10" : "bg-background hover:border-primary/50"
+                      }`}
+                    >
+                      <div className="flex justify-between">
+                        <span className="text-foreground">{c.amount} {c.assetLabel}</span>
+                        <span className={c.claimableNow ? "text-success" : "text-warning"}>
+                          {c.claimableNow ? "CLAIMABLE" : c.unlockAt ? new Date(c.unlockAt * 1000).toISOString() : "LOCKED"}
+                        </span>
+                      </div>
+                      <div className="truncate text-muted-foreground">{c.id}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             {balance && (
               <dl className="grid grid-cols-2 gap-3 rounded-md border bg-background p-3 font-mono text-xs">
                 <div><dt className="text-muted-foreground">Amount</dt><dd className="text-base text-foreground">{balance.amount} {balance.assetLabel}</dd></div>

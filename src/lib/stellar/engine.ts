@@ -85,6 +85,33 @@ export async function fetchBalance(horizon: string, id: string, claimant: string
   };
 }
 
+/** List every claimable balance where `claimant` is a claimant. */
+export async function fetchClaimableBalances(horizon: string, claimant: string, nativeCode: string): Promise<BalanceInfo[]> {
+  const server = new Horizon.Server(horizon);
+  const page = await server.claimableBalances().claimant(claimant).limit(200).order("desc").call();
+  const now = Math.floor(Date.now() / 1000);
+  return page.records.flatMap((cb): BalanceInfo[] => {
+    const createdAt = Math.floor(
+      Date.parse((cb as unknown as { last_modified_time?: string }).last_modified_time ?? new Date().toISOString()) / 1000,
+    );
+    const entry = cb.claimants.find((c) => c.destination === claimant) ?? cb.claimants[0];
+    if (!entry) return [];
+    const pred = entry.predicate as unknown as HorizonPredicate;
+    const w = claimWindow(pred, createdAt, now);
+    const asset = assetFromString(cb.asset);
+    return [{
+      id: cb.id,
+      amount: cb.amount,
+      asset,
+      assetLabel: asset.isNative() ? nativeCode : `${asset.getCode()}`,
+      ...(cb.sponsor ? { sponsor: cb.sponsor } : {}),
+      claimant: entry.destination,
+      predicateText: describe(pred),
+      ...w,
+    }];
+  });
+}
+
 export async function fetchFeeStats(horizon: string): Promise<FeeStats> {
   const s = await new Horizon.Server(horizon).feeStats();
   return {

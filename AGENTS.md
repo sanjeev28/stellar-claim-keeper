@@ -14,3 +14,5 @@
 - The index route uses `ssr: false` because the engine depends on browser crypto/fetch and holds secrets in memory only.
 - Network presets live in `src/lib/stellar/networks.ts`; add networks there rather than hardcoding Horizon URLs elsewhere.
 - Submission uses raw `fetch` POST to every configured Horizon in parallel with a pre-signed envelope gated by `minTime` = unlock, so early attempts fail free with `tx_too_early`.
+
+- Recovery settings use local tab state within the recovery workspace, while execution status remains mounted alongside — changing presentation tabs must not interrupt an armed engine or clear form values.

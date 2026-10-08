@@ -1,3 +1,4 @@
+import { Terminal } from "lucide-react";
 import { useEffect, useRef } from "react";
 import type { LogEntry } from "@/lib/stellar/engine";
 
@@ -15,10 +16,10 @@ export function Console({ logs, explorer }: { logs: LogEntry[]; explorer: (h: st
     ref.current?.scrollTo({ top: ref.current.scrollHeight });
   }, [logs]);
   return (
-    <div ref={ref} className="h-[420px] overflow-y-auto rounded-md border bg-background p-3 font-mono text-xs leading-relaxed">
-      {logs.length === 0 && <div className="text-muted-foreground">$ awaiting execution…</div>}
+    <div ref={ref} role="log" aria-label="Execution log" aria-live="polite" className="journal-output overflow-y-auto text-xs leading-relaxed">
+      {logs.length === 0 && <div className="journal-empty"><Terminal className="mb-3 size-7 text-muted-foreground" /><span className="text-sm text-muted-foreground">Awaiting execution</span></div>}
       {logs.map((l) => (
-        <div key={l.id} className={color[l.level]}>
+        <div key={l.id} className={`break-words py-1 ${color[l.level]}`}>
           <span className="text-muted-foreground">{new Date(l.at).toISOString().slice(11, 23)} </span>
           <span className="uppercase opacity-70">[{l.level}]</span> {l.msg}
           {l.hash && (

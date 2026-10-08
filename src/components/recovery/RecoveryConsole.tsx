@@ -38,7 +38,7 @@ export function RecoveryConsole() {
   const [networkId, setNetworkId] = useState("pi-mainnet");
   const network = NETWORKS.find((n) => n.id === networkId)!;
   const [extraHorizons, setExtraHorizons] = useState("");
-  const [balanceId, setBalanceId] = useState("");
+  const [candidates, setCandidates] = useState<BalanceInfo[]>([]);
   const [credential, setCredential] = useState("");
   const [destination, setDestination] = useState("");
   const [rememberDest, setRememberDest] = useState(true);
@@ -94,22 +94,27 @@ export function RecoveryConsole() {
   const opCount = (mergeAccount ? 3 : 2) + (feeBump ? 1 : 0);
 
   async function loadBalance() {
+    if (!credential.trim()) return;
     setLoading(true);
     try {
-      let pk = claimantPk;
-      if (credential.trim()) {
-        const kp = await keypairFromCredential(credential, network.coinType);
-        pk = kp.publicKey();
-        setClaimantPk(pk);
-      }
-      const [b, f] = await Promise.all([
-        fetchBalance(network.horizon, balanceId, pk ?? "", network.nativeCode),
+      const kp = await keypairFromCredential(credential, network.coinType);
+      const pk = kp.publicKey();
+      setClaimantPk(pk);
+      const [list, f] = await Promise.all([
+        fetchClaimableBalances(network.horizon, pk, network.nativeCode),
         fetchFeeStats(network.horizon),
       ]);
-      setBalance(b);
+      setCandidates(list);
       setFees(f);
-      log("ok", `Loaded balance ${b.amount} ${b.assetLabel} · predicate ${b.predicateText}`);
-      if (pk && b.claimant !== pk) log("error", `Your key ${pk.slice(0, 8)}… is NOT a claimant on this balance.`);
+      if (list.length === 0) {
+        setBalance(null);
+        log("warn", `No claimable balances found for ${pk.slice(0, 8)}… on ${network.label}.`);
+      } else {
+        const target = list.length === 1 ? list[0] : (list.find((b) => b.claimableNow) ?? list[0]);
+        setBalance(target);
+        log("ok", `Found ${list.length} claimable balance${list.length > 1 ? "s" : ""} for ${pk.slice(0, 8)}…`);
+        log("ok", `Selected ${target.amount} ${target.assetLabel} · predicate ${target.predicateText}`);
+      }
       log("net", `Fee stats: base ${f.min} · p50 ${f.p50} · p99 ${f.p99} stroops · capacity ${f.capacity}`);
     } catch (e) {
       const d = diagnose(e);
@@ -118,6 +123,21 @@ export function RecoveryConsole() {
       setLoading(false);
     }
   }
+
+  // Auto-discover balances as soon as a valid key/passphrase is entered
+  useEffect(() => {
+    setClaimantPk(null);
+    setCandidates([]);
+    setBalance(null);
+    if (!credential.trim()) return;
+    const t = setTimeout(() => {
+      keypairFromCredential(credential, network.coinType)
+        .then(() => loadBalance())
+        .catch(() => {}); // incomplete/invalid input — wait for more typing
+    }, 800);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [credential, networkId]);
 
   async function arm() {
     if (!balance) return;

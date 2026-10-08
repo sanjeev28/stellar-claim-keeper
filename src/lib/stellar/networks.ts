@@ -55,10 +55,10 @@ export const toStroops = (units: number) => Math.round(units * STROOPS);
 /** Competitive per-op fee tiers, in native units. */
 export const FEE_TIERS = {
   standard: { label: "Standard", perOp: 1 },
-  aggressive: { label: "Aggressive", perOp: 5 },
+  high: { label: "High", perOp: 5 },
   ultra: { label: "Ultra Sniper", perOp: 10 },
 } as const;
-export const CUSTOM_FEE_DEFAULT = 7;
+export const CUSTOM_FEE_DEFAULT = 6;
 export const CUSTOM_FEE_MAX = 25;
 export const ESCALATION_CAP_DEFAULT = 15;
 

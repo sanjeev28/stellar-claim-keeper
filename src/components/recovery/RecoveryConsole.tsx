@@ -48,7 +48,7 @@ export function RecoveryConsole() {
   const [claimantPk, setClaimantPk] = useState<string | null>(null);
   const [balance, setBalance] = useState<BalanceInfo | null>(null);
   const [fees, setFees] = useState<FeeStats | null>(null);
-  const [tier, setTier] = useState<Tier>("aggressive");
+  const [tier, setTier] = useState<Tier>("high");
   const [customFee, setCustomFee] = useState(String(CUSTOM_FEE_DEFAULT));
   const [feeBump, setFeeBump] = useState(true);
   const [feeCredential, setFeeCredential] = useState("");
@@ -56,7 +56,7 @@ export function RecoveryConsole() {
   const [maxFee, setMaxFee] = useState(String(ESCALATION_CAP_DEFAULT));
   const [directId, setDirectId] = useState("");
   const [leadMs, setLeadMs] = useState("1500");
-  const [burstMs, setBurstMs] = useState("90");
+  const [burstMs, setBurstMs] = useState("80");
   const [mergeAccount, setMergeAccount] = useState(false);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [running, setRunning] = useState(false);
@@ -91,7 +91,7 @@ export function RecoveryConsole() {
   const baseFee = fees?.min ?? (network.id.startsWith("pi") ? 100000 : 100);
   const tierFees: Record<Exclude<Tier, "custom">, number> = {
     standard: Math.max(baseFee, toStroops(FEE_TIERS.standard.perOp)),
-    aggressive: Math.max(baseFee, toStroops(FEE_TIERS.aggressive.perOp)),
+    high: Math.max(baseFee, toStroops(FEE_TIERS.high.perOp)),
     ultra: Math.max(baseFee, toStroops(FEE_TIERS.ultra.perOp)),
   };
   const customUnits = Math.min(CUSTOM_FEE_MAX, Math.max(0, Number(customFee) || 0));
@@ -175,7 +175,7 @@ export function RecoveryConsole() {
           escalate,
           maxPerOpFee: Math.max(perOpFee, toStroops(Number(maxFee) || ESCALATION_CAP_DEFAULT)),
           leadMs: Number(leadMs) || 0,
-          burstIntervalMs: Math.max(50, Number(burstMs) || 90),
+          burstIntervalMs: Math.max(50, Number(burstMs) || 80),
           windowSec: 600,
           mergeAccount,
         },
@@ -288,7 +288,7 @@ export function RecoveryConsole() {
 
           <Panel step="02" title="Priority fee">
             <div className="grid grid-cols-4 gap-2">
-              {(["standard", "aggressive", "ultra", "custom"] as Tier[]).map((t) => (
+              {(["standard", "high", "ultra", "custom"] as Tier[]).map((t) => (
                 <button
                   key={t}
                   onClick={() => setTier(t)}

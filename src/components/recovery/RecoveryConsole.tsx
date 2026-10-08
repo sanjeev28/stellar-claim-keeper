@@ -110,7 +110,7 @@ export function RecoveryConsole() {
         setBalance(null);
         log("warn", `No claimable balances found for ${pk.slice(0, 8)}… on ${network.label}.`);
       } else {
-        const target = list.length === 1 ? list[0] : (list.find((b) => b.claimableNow) ?? list[0]);
+        const target = (list.length === 1 ? list[0] : (list.find((b) => b.claimableNow) ?? list[0]))!;
         setBalance(target);
         log("ok", `Found ${list.length} claimable balance${list.length > 1 ? "s" : ""} for ${pk.slice(0, 8)}…`);
         log("ok", `Selected ${target.amount} ${target.assetLabel} · predicate ${target.predicateText}`);

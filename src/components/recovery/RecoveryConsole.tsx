@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -41,6 +41,7 @@ export function RecoveryConsole() {
   const [balanceId, setBalanceId] = useState("");
   const [credential, setCredential] = useState("");
   const [destination, setDestination] = useState("");
+  const [rememberDest, setRememberDest] = useState(true);
   const [claimantPk, setClaimantPk] = useState<string | null>(null);
   const [balance, setBalance] = useState<BalanceInfo | null>(null);
   const [fees, setFees] = useState<FeeStats | null>(null);
@@ -63,6 +64,20 @@ export function RecoveryConsole() {
   const log = useCallback((level: LogLevel, msg: string, extra?: { details?: string[]; hash?: string }) => {
     setLogs((l) => [...l.slice(-500), { id: idRef.current++, at: Date.now(), level, msg, ...extra }]);
   }, []);
+
+  // Restore saved vault destination on load
+  useEffect(() => {
+    const saved = localStorage.getItem("vaultline.destination");
+    if (saved) setDestination(saved);
+    if (localStorage.getItem("vaultline.rememberDest") === "0") setRememberDest(false);
+  }, []);
+
+  // Persist (or clear) the vault destination whenever it changes
+  useEffect(() => {
+    if (rememberDest && destination.trim()) localStorage.setItem("vaultline.destination", destination.trim());
+    if (!rememberDest) localStorage.removeItem("vaultline.destination");
+    localStorage.setItem("vaultline.rememberDest", rememberDest ? "1" : "0");
+  }, [destination, rememberDest]);
 
   const horizons = useMemo(
     () => [network.horizon, ...extraHorizons.split(/[\s,]+/).filter((h) => /^https?:\/\//.test(h))],
@@ -194,6 +209,10 @@ export function RecoveryConsole() {
               <Label>Vault destination (G… or muxed M…)</Label>
               <Input className="font-mono text-xs" value={destination} onChange={(e) => setDestination(e.target.value)} />
               {destination && !isValidDestination(destination) && <p className="text-xs text-destructive">Invalid address</p>}
+              <div className="flex items-center justify-between">
+                <Label className="text-xs text-muted-foreground">Remember this address on this device</Label>
+                <Switch checked={rememberDest} onCheckedChange={setRememberDest} />
+              </div>
             </div>
             <Button onClick={loadBalance} disabled={!balanceId || loading} variant="secondary" className="w-full">
               {loading ? "Fetching on-chain data…" : "Fetch balance & predicate"}

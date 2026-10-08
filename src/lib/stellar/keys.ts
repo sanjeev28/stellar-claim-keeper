@@ -45,7 +45,7 @@ export async function keypairFromCredential(
   if (![12, 15, 18, 21, 24].includes(parts.length)) {
     throw new Error(`Expected a 12–24 word passphrase, but got ${parts.length} word${parts.length === 1 ? "" : "s"}.`);
   }
-  const english = wordlists.english;
+  const english = wordlists["english"] ?? [];
   const unknown = [...new Set(parts.filter((w) => !english.includes(w)))];
   if (unknown.length > 0) {
     throw new Error(`Not in the BIP-39 wordlist: ${unknown.slice(0, 5).join(", ")}${unknown.length > 5 ? "…" : ""} — check spelling.`);

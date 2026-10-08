@@ -38,6 +38,7 @@ export type EngineConfig = {
   claimant: Keypair;
   destination: string;
   perOpFee: number; // stroops
+  baseFee: number; // network minimum per op (stroops)
   feeBump: boolean;
   feeSource?: Keypair | undefined;
   escalate: boolean;
@@ -149,7 +150,7 @@ export class RecoveryEngine {
     const { cfg } = this;
     const account = await this.primary.loadAccount(cfg.claimant.publicKey());
     const opCount = cfg.mergeAccount ? 3 : 2;
-    const innerFee = cfg.feeBump ? 100 : perOpFee; // inner bid minimal when outer fee-bump carries priority
+    const innerFee = cfg.feeBump ? cfg.baseFee : perOpFee; // inner bid minimal when outer fee-bump carries priority
     const builder = new TransactionBuilder(account, {
       fee: String(innerFee),
       networkPassphrase: cfg.network.passphrase,

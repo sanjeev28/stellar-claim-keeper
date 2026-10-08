@@ -69,7 +69,7 @@ export function RecoveryConsole() {
     [network, extraHorizons],
   );
 
-  const baseFee = fees?.min ?? 100;
+  const baseFee = fees?.min ?? (network.id.startsWith("pi") ? 100000 : 100);
   const tierFees: Record<Exclude<Tier, "custom">, number> = {
     standard: Math.max(baseFee, fees?.p50 ?? baseFee),
     high: Math.max(baseFee * 10, fees?.p99 ?? 0),
@@ -121,6 +121,7 @@ export function RecoveryConsole() {
           claimant,
           destination: destination.trim(),
           perOpFee,
+          baseFee,
           feeBump,
           feeSource,
           escalate,

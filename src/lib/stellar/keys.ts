@@ -1,5 +1,5 @@
 import { Keypair, StrKey } from "@stellar/stellar-sdk";
-import { mnemonicToSeed, validateMnemonic } from "bip39";
+import { mnemonicToSeed, validateMnemonic, wordlists } from "bip39";
 
 async function hmacSha512(key: Uint8Array, data: Uint8Array): Promise<Uint8Array> {
   const k = await crypto.subtle.importKey(
@@ -37,9 +37,21 @@ export async function keypairFromCredential(
 ): Promise<Keypair> {
   const value = credential.trim();
   if (StrKey.isValidEd25519SecretSeed(value)) return Keypair.fromSecret(value);
-  const words = value.toLowerCase().split(/\s+/).join(" ");
+  if (/^S[A-Z2-7]{10,}$/.test(value)) {
+    throw new Error("That looks like a secret key but its checksum is invalid — check for a missing or wrong character.");
+  }
+  const parts = value.toLowerCase().split(/\s+/).filter(Boolean);
+  const words = parts.join(" ");
+  if (![12, 15, 18, 21, 24].includes(parts.length)) {
+    throw new Error(`Expected a 12–24 word passphrase, but got ${parts.length} word${parts.length === 1 ? "" : "s"}.`);
+  }
+  const english = wordlists["english"] ?? [];
+  const unknown = [...new Set(parts.filter((w) => !english.includes(w)))];
+  if (unknown.length > 0) {
+    throw new Error(`Not in the BIP-39 wordlist: ${unknown.slice(0, 5).join(", ")}${unknown.length > 5 ? "…" : ""} — check spelling.`);
+  }
   if (!validateMnemonic(words)) {
-    throw new Error("Credential is neither a valid S... secret key nor a valid BIP-39 mnemonic.");
+    throw new Error("Passphrase checksum failed — one or more words are wrong or in the wrong order.");
   }
   const seed = new Uint8Array(await mnemonicToSeed(words));
   const raw = await deriveEd25519(seed, [44, coinType, accountIndex]);

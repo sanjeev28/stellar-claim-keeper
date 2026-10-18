@@ -1,6 +1,6 @@
 import "@/lib/stellar/polyfill";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Fingerprint, Gauge, PanelLeftClose, PanelLeftOpen, RefreshCw, ShieldCheck, SlidersHorizontal, Timer, Trash2, Zap } from "lucide-react";
+import { CheckCircle2, Clock, Fingerprint, Gauge, PanelLeftClose, PanelLeftOpen, Radio, RefreshCw, ShieldCheck, SlidersHorizontal, Timer, Trash2, XCircle, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -25,6 +25,50 @@ import {
 import { diagnose } from "@/lib/stellar/errors";
 
 type Tier = keyof typeof FEE_TIERS | "custom";
+
+type Phase = "idle" | "scheduled" | "submitting" | "success" | "failed";
+
+const PHASE_META: Record<Exclude<Phase, "idle">, { label: string; hint: string; icon: typeof Clock; classes: string }> = {
+  scheduled: {
+    label: "Scheduled",
+    hint: "Armed — waiting for the unlock second",
+    icon: Clock,
+    classes: "border-info/50 bg-info/10 text-info",
+  },
+  submitting: {
+    label: "Submitting",
+    hint: "Firing transactions at the network",
+    icon: Radio,
+    classes: "border-warning/50 bg-warning/10 text-warning",
+  },
+  success: {
+    label: "Successful",
+    hint: "Funds swept to your vault",
+    icon: CheckCircle2,
+    classes: "border-success/50 bg-success/10 text-success",
+  },
+  failed: {
+    label: "Failed",
+    hint: "Window closed without inclusion — see log",
+    icon: XCircle,
+    classes: "border-destructive/50 bg-destructive/10 text-destructive",
+  },
+};
+
+function PhaseBanner({ phase }: { phase: Phase }) {
+  if (phase === "idle") return null;
+  const meta = PHASE_META[phase];
+  const Icon = meta.icon;
+  return (
+    <div role="status" className={`mb-3 flex items-center gap-3 rounded-md border px-3 py-2.5 ${meta.classes}`}>
+      <Icon className={`size-5 shrink-0 ${phase === "submitting" ? "animate-pulse" : ""}`} />
+      <div className="min-w-0">
+        <div className="font-display text-sm font-semibold uppercase tracking-wide">{meta.label}</div>
+        <div className="truncate text-xs opacity-80">{meta.hint}</div>
+      </div>
+    </div>
+  );
+}
 
 function Panel({ title, step, hidden, children }: { title: string; step: string; hidden: boolean; children: React.ReactNode }) {
   return (
@@ -65,10 +109,12 @@ export function RecoveryConsole() {
   const [running, setRunning] = useState(false);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{ hash: string; ledger: number } | null>(null);
+  const [phase, setPhase] = useState<Phase>("idle");
   const engineRef = useRef<RecoveryEngine | null>(null);
   const idRef = useRef(0);
 
   const log = useCallback((level: LogLevel, msg: string, extra?: { details?: string[]; hash?: string }) => {
+    if (msg.startsWith("FIRING")) setPhase("submitting");
     setLogs((l) => [...l.slice(-500), { id: idRef.current++, at: Date.now(), level, msg, ...extra }]);
   }, []);
 
@@ -157,6 +203,7 @@ export function RecoveryConsole() {
     if (!balance) return;
     if (!isValidDestination(destination)) return log("error", "Vault destination must be a valid G… or M… address.");
     setResult(null);
+    setPhase("scheduled");
     setRunning(true);
     const release = await holdAwake();
     log("info", "Background-safe timers + wake lock engaged.");
@@ -188,11 +235,15 @@ export function RecoveryConsole() {
       log("warn", `ARMED. Target unlock ${balance.unlockAt ? new Date(balance.unlockAt * 1000).toISOString() : "now"}`);
       const r = await engine.run(balance);
       setResult(r);
+      setPhase(r ? "success" : "failed");
     } catch (e) {
-      if ((e as Error).name === "AbortError") log("warn", "Disarmed by user.");
-      else {
+      if ((e as Error).name === "AbortError") {
+        log("warn", "Disarmed by user.");
+        setPhase("idle");
+      } else {
         const d = diagnose(e);
         log("error", d.title, { details: d.details });
+        setPhase("failed");
       }
     } finally {
       release();
@@ -404,6 +455,7 @@ export function RecoveryConsole() {
               <div><h2 className="font-display text-sm font-semibold">Execution console</h2><p className="mt-1 text-xs text-muted-foreground">{logs.length} entries</p></div>
               <Button variant="ghost" size="icon" title="Clear execution log" aria-label="Clear execution log" onClick={() => setLogs([])}><Trash2 /></Button>
             </div>
+            <PhaseBanner phase={phase} />
             <Console logs={logs} explorer={network.explorerTx} />
           </section>
         </div>

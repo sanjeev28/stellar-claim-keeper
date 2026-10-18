@@ -159,6 +159,7 @@ export function RecoveryConsole() {
     if (!balance) return;
     if (!isValidDestination(destination)) return log("error", "Vault destination must be a valid G… or M… address.");
     setResult(null);
+    setPhase("scheduled");
     setRunning(true);
     const release = await holdAwake();
     log("info", "Background-safe timers + wake lock engaged.");
@@ -190,11 +191,15 @@ export function RecoveryConsole() {
       log("warn", `ARMED. Target unlock ${balance.unlockAt ? new Date(balance.unlockAt * 1000).toISOString() : "now"}`);
       const r = await engine.run(balance);
       setResult(r);
+      setPhase(r ? "success" : "failed");
     } catch (e) {
-      if ((e as Error).name === "AbortError") log("warn", "Disarmed by user.");
-      else {
+      if ((e as Error).name === "AbortError") {
+        log("warn", "Disarmed by user.");
+        setPhase("idle");
+      } else {
         const d = diagnose(e);
         log("error", d.title, { details: d.details });
+        setPhase("failed");
       }
     } finally {
       release();

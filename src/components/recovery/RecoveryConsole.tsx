@@ -65,10 +65,12 @@ export function RecoveryConsole() {
   const [running, setRunning] = useState(false);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{ hash: string; ledger: number } | null>(null);
+  const [phase, setPhase] = useState<"idle" | "scheduled" | "submitting" | "success" | "failed">("idle");
   const engineRef = useRef<RecoveryEngine | null>(null);
   const idRef = useRef(0);
 
   const log = useCallback((level: LogLevel, msg: string, extra?: { details?: string[]; hash?: string }) => {
+    if (msg.startsWith("FIRING")) setPhase("submitting");
     setLogs((l) => [...l.slice(-500), { id: idRef.current++, at: Date.now(), level, msg, ...extra }]);
   }, []);
 

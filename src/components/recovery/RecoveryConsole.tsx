@@ -1,6 +1,6 @@
 import "@/lib/stellar/polyfill";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Fingerprint, Gauge, PanelLeftClose, PanelLeftOpen, RefreshCw, ShieldCheck, SlidersHorizontal, Timer, Trash2, Zap } from "lucide-react";
+import { CheckCircle2, Clock, Fingerprint, Gauge, PanelLeftClose, PanelLeftOpen, Radio, RefreshCw, ShieldCheck, SlidersHorizontal, Timer, Trash2, XCircle, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -25,6 +25,50 @@ import {
 import { diagnose } from "@/lib/stellar/errors";
 
 type Tier = keyof typeof FEE_TIERS | "custom";
+
+type Phase = "idle" | "scheduled" | "submitting" | "success" | "failed";
+
+const PHASE_META: Record<Exclude<Phase, "idle">, { label: string; hint: string; icon: typeof Clock; classes: string }> = {
+  scheduled: {
+    label: "Scheduled",
+    hint: "Armed — waiting for the unlock second",
+    icon: Clock,
+    classes: "border-info/50 bg-info/10 text-info",
+  },
+  submitting: {
+    label: "Submitting",
+    hint: "Firing transactions at the network",
+    icon: Radio,
+    classes: "border-warning/50 bg-warning/10 text-warning",
+  },
+  success: {
+    label: "Successful",
+    hint: "Funds swept to your vault",
+    icon: CheckCircle2,
+    classes: "border-success/50 bg-success/10 text-success",
+  },
+  failed: {
+    label: "Failed",
+    hint: "Window closed without inclusion — see log",
+    icon: XCircle,
+    classes: "border-destructive/50 bg-destructive/10 text-destructive",
+  },
+};
+
+function PhaseBanner({ phase }: { phase: Phase }) {
+  if (phase === "idle") return null;
+  const meta = PHASE_META[phase];
+  const Icon = meta.icon;
+  return (
+    <div role="status" className={`mb-3 flex items-center gap-3 rounded-md border px-3 py-2.5 ${meta.classes}`}>
+      <Icon className={`size-5 shrink-0 ${phase === "submitting" ? "animate-pulse" : ""}`} />
+      <div className="min-w-0">
+        <div className="font-display text-sm font-semibold uppercase tracking-wide">{meta.label}</div>
+        <div className="truncate text-xs opacity-80">{meta.hint}</div>
+      </div>
+    </div>
+  );
+}
 
 function Panel({ title, step, hidden, children }: { title: string; step: string; hidden: boolean; children: React.ReactNode }) {
   return (

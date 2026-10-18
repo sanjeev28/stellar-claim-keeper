@@ -109,7 +109,7 @@ export function RecoveryConsole() {
   const [running, setRunning] = useState(false);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{ hash: string; ledger: number } | null>(null);
-  const [phase, setPhase] = useState<"idle" | "scheduled" | "submitting" | "success" | "failed">("idle");
+  const [phase, setPhase] = useState<Phase>("idle");
   const engineRef = useRef<RecoveryEngine | null>(null);
   const idRef = useRef(0);
 
@@ -455,6 +455,7 @@ export function RecoveryConsole() {
               <div><h2 className="font-display text-sm font-semibold">Execution console</h2><p className="mt-1 text-xs text-muted-foreground">{logs.length} entries</p></div>
               <Button variant="ghost" size="icon" title="Clear execution log" aria-label="Clear execution log" onClick={() => setLogs([])}><Trash2 /></Button>
             </div>
+            <PhaseBanner phase={phase} />
             <Console logs={logs} explorer={network.explorerTx} />
           </section>
         </div>

@@ -66,11 +66,15 @@ export function setPreciseInterval(cb: Cb, ms: number): () => void {
 export const preciseSleep = (ms: number, signal?: AbortSignal) =>
   new Promise<void>((res, rej) => {
     if (signal?.aborted) return rej(new DOMException("aborted", "AbortError"));
-    const cancel = setPreciseTimeout(res, ms);
-    signal?.addEventListener("abort", () => {
+    const onAbort = () => {
       cancel();
       rej(new DOMException("aborted", "AbortError"));
-    });
+    };
+    const cancel = setPreciseTimeout(() => {
+      signal?.removeEventListener("abort", onAbort);
+      res();
+    }, ms);
+    signal?.addEventListener("abort", onAbort, { once: true });
   });
 
 /** Keep the tab awake & un-throttled while armed. Returns a release function. */

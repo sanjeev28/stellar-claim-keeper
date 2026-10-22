@@ -165,7 +165,8 @@ export function decodeReceipt(data: HorizonReceipt) {
   if (encoded) {
     try {
       const decoded = xdr.TransactionResult.fromXDR(encoded, "base64");
-      feePaid = feeUnits(decoded.feeCharged);
+      // Rejection XDR contains a prospective fee, not proof that it was charged.
+      if (typeof data.successful === "boolean") feePaid = feeUnits(decoded.feeCharged);
       const result = decoded.result;
       code = result.type.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
       if (result.type === "txFeeBumpInnerFailed") {
@@ -286,10 +287,16 @@ export class RecoveryEngine {
 
   private async lookup(hash: string): Promise<HorizonReceipt | null> {
     const responses = await Promise.all(this.cfg.horizons.map(async (h) => {
+      const ctl = new AbortController();
+      const onAbort = () => ctl.abort();
+      this.broadcastAbort.signal.addEventListener("abort", onAbort, { once: true });
+      if (this.broadcastAbort.signal.aborted) ctl.abort();
+      const timer = setTimeout(() => ctl.abort(), SUBMIT_TIMEOUT_MS);
       try {
-        const r = await fetch(`${h.replace(/\/$/, "")}/transactions/${hash}`, { signal: this.broadcastAbort.signal });
+        const r = await fetch(`${h.replace(/\/$/, "")}/transactions/${hash}`, { signal: ctl.signal });
         return r.ok ? await r.json() as HorizonReceipt : null;
       } catch { return null; }
+      finally { clearTimeout(timer); this.broadcastAbort.signal.removeEventListener("abort", onAbort); }
     }));
     return responses.find((r) => typeof r?.successful === "boolean") ?? null;
   }
@@ -380,6 +387,12 @@ export class RecoveryEngine {
           finish(receipt, hash);
         } else if (code === "tx_failed" || code === "tx_fee_bump_inner_failed") {
           const receipt = await this.lookup(hash);
+          const decoded = decodeReceipt(r.data);
+          if (!receipt && decoded.code?.includes("tx_too_early")) {
+            log("info", `#${number} · fee-bump inner tx_too_early rejected before inclusion — retrying`, { hash });
+            return;
+          }
+          if (!receipt && decoded.code?.includes("tx_bad_seq")) { ambiguous = true; return; }
           finish(receipt ?? r.data, hash, decodeReceipt(r.data).code ?? code);
         } else if (code === "tx_insufficient_fee") {
           await escalateFee();

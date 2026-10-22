@@ -183,11 +183,10 @@ export function RecoveryConsole() {
       }
       const id = directId.trim();
       const [list, f] = await Promise.all([
-        id
-          ? fetchBalance(network.horizon, id, pk, network.nativeCode).then((b) => [b])
-          : fetchClaimableBalances(network.horizon, pk, network.nativeCode),
+        fetchClaimableBalances(network.horizon, pk, network.nativeCode),
         fetchFeeStats(network.horizon).catch(() => null),
       ]);
+      if (id && !list.some((b) => b.id === id)) list.unshift(await fetchBalance(network.horizon, id, pk, network.nativeCode));
       if (scan !== scanRef.current) return;
       setCandidates(list);
       setFees(f);
@@ -195,7 +194,7 @@ export function RecoveryConsole() {
         setBalance(null);
         log("warn", `No claimable balances found for ${pk.slice(0, 8)}… on ${network.label}.`);
       } else {
-        const target = list.find((b) => b.id === balance?.id) ?? list.find((b) => b.claimableNow) ?? list[0];
+        const target = list.find((b) => b.id === id) ?? list.find((b) => b.id === balance?.id) ?? list.find((b) => b.claimableNow) ?? list[0];
         if (!target) return;
         setBalance(target);
         log("ok", `Found ${list.length} claimable balance${list.length > 1 ? "s" : ""} for ${pk.slice(0, 8)}…`);
@@ -243,8 +242,10 @@ export function RecoveryConsole() {
     let historyId: string | null = null;
     const savePromise = history.userId ? history.save(historyPayload(run, null)) : Promise.resolve(null);
     const updateHistory = async (payload: ReturnType<typeof historyPayload>) => {
-      historyId = historyId ?? await savePromise;
-      if (historyId) await history.update(historyId, payload);
+      try {
+        historyId = historyId ?? await savePromise;
+        if (historyId) await history.update(historyId, payload);
+      } catch { log("warn", "History could not be updated; execution outcome is unchanged."); }
     };
     try {
       release = await holdAwake();
@@ -273,7 +274,10 @@ export function RecoveryConsole() {
           timingMode,
           dryRun,
         },
-        log,
+        (level, msg, extra) => {
+          log(level, msg, extra);
+          if (msg.startsWith("FIRING")) void updateHistory({ ...historyPayload(run, null), result: "submitting" });
+        },
       );
       engineRef.current = engine;
       log("warn", `ARMED. Target unlock ${balance.unlockAt ? new Date(balance.unlockAt * 1000).toISOString() : "now"}`);

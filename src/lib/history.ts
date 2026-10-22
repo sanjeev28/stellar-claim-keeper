@@ -57,8 +57,8 @@ export function useExecutionHistory() {
   const save = useCallback(async (payload: HistoryPayload) => {
     const uid = owner.current;
     if (!uid) { setError("This run is not saved. Sign in before arming to save private history."); return null; }
-    const { data, error } = await supabase.from("execution_history").insert({ ...payload, user_id: uid }).select("id").single();
-    if (error) { setError("Run could not be saved to history. Execution is unaffected."); return null; }
+    const { data, error } = await supabase.from("execution_history").insert({ ...payload, user_id: uid }).select("id").single().then((r) => r, () => ({ data: null, error: true }));
+    if (error || !data) { setError("Run could not be saved to history. Execution is unaffected."); return null; }
     void refresh();
     return data.id;
   }, [refresh]);

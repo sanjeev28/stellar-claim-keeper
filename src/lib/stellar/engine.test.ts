@@ -86,4 +86,46 @@ describe("End-to-end recovery engine", () => {
     expect(second.next).toHaveBeenCalledOnce();
   });
   it("converts actual stroops exactly without rounding", () => { expect(feeUnits("123456789")).toBe("12.3456789"); });
+  it("falls back to fixed lead when ledger data is unavailable", async () => {
+    vi.useFakeTimers();
+    const { balance, config } = fixture({ timingMode: "ledger", windowSec: 600 });
+    balance.unlockAt = Math.floor(Date.now() / 1000) + 15;
+    const start = Date.now();
+    const times: number[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (_url: string, init?: RequestInit) => {
+      if (init?.method !== "POST") return new Response("{}", { status: 503 });
+      times.push(Date.now());
+      return new Response(JSON.stringify({ successful: true, ledger: 1, fee_charged: "300" }));
+    }));
+    const running = new RecoveryEngine(config, vi.fn()).run(balance);
+    await vi.advanceTimersByTimeAsync(16000);
+    expect((await running).result).toBe("successful");
+    expect(times[0]).toBe(balance.unlockAt * 1000 - 1500);
+    expect((times[0] ?? 0) - start).toBeGreaterThan(12000);
+  });
+  it("starts firing when the closed ledger plus ten seconds reaches unlock", async () => {
+    vi.useFakeTimers();
+    const { balance, config } = fixture({ timingMode: "ledger", windowSec: 600 });
+    const start = Date.now();
+    balance.unlockAt = Math.floor(start / 1000) + 15;
+    let polls = 0;
+    let fire = 0;
+    vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
+      if (url.includes("/ledgers?")) {
+        polls++;
+        const close = (balance.unlockAt ?? 0) - (polls === 1 ? 11 : 10);
+        return new Response(JSON.stringify({ _embedded: { records: [{ closed_at: new Date(close * 1000).toISOString() }] } }));
+      }
+      if (init?.method === "POST") {
+        fire = Date.now();
+        return new Response(JSON.stringify({ successful: true, ledger: 2, fee_charged: "300" }));
+      }
+      return new Response("{}", { status: 404 });
+    }));
+    const running = new RecoveryEngine(config, vi.fn()).run(balance);
+    await vi.advanceTimersByTimeAsync(500);
+    expect((await running).result).toBe("successful");
+    expect(polls).toBe(2);
+    expect(fire - start).toBe(250);
+  });
 });

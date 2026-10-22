@@ -14,7 +14,57 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      execution_history: {
+        Row: {
+          amount: string
+          asset_label: string
+          balance_id: string
+          created_at: string
+          dry_run: boolean
+          fee_paid: string | null
+          id: string
+          ledger: number | null
+          network_id: string
+          result: string
+          result_code: string | null
+          tx_hash: string | null
+          unlock_time: string | null
+          user_id: string
+        }
+        Insert: {
+          amount: string
+          asset_label: string
+          balance_id: string
+          created_at?: string
+          dry_run?: boolean
+          fee_paid?: string | null
+          id?: string
+          ledger?: number | null
+          network_id: string
+          result: string
+          result_code?: string | null
+          tx_hash?: string | null
+          unlock_time?: string | null
+          user_id: string
+        }
+        Update: {
+          amount?: string
+          asset_label?: string
+          balance_id?: string
+          created_at?: string
+          dry_run?: boolean
+          fee_paid?: string | null
+          id?: string
+          ledger?: number | null
+          network_id?: string
+          result?: string
+          result_code?: string | null
+          tx_hash?: string | null
+          unlock_time?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

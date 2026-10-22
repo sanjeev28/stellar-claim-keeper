@@ -9,7 +9,7 @@ export type HorizonPredicate = {
 };
 
 const absEpoch = (p: HorizonPredicate) =>
-  p.abs_before_epoch ? Number(p.abs_before_epoch) : Math.floor(Date.parse(p.abs_before!) / 1000);
+  p.abs_before_epoch ? Number(p.abs_before_epoch) : Math.floor(Date.parse(p.abs_before ?? "") / 1000);
 
 /** Evaluate predicate at unix time t (seconds). createdAt anchors rel_before. */
 export function evaluate(p: HorizonPredicate, t: number, createdAt: number): boolean {
@@ -47,7 +47,8 @@ export function claimWindow(p: HorizonPredicate, createdAt: number, now: number)
   }
   let expiresAt: number | null = null;
   if (unlockAt !== null) {
-    for (const b of pts.filter((x) => x > unlockAt!).sort((a, b) => a - b)) {
+    const start = unlockAt;
+    for (const b of pts.filter((x) => x > start).sort((a, b) => a - b)) {
       if (!evaluate(p, b, createdAt)) {
         expiresAt = b;
         break;

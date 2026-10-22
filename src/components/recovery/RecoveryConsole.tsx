@@ -279,7 +279,7 @@ export function RecoveryConsole() {
       log("warn", `ARMED. Target unlock ${balance.unlockAt ? new Date(balance.unlockAt * 1000).toISOString() : "now"}`);
       const r = await engine.run(balance);
       setResult(r);
-      setPhase(r.result === "successful" ? "success" : r.result);
+    setPhase(r.result === "successful" ? "success" : r.result);
       await updateHistory(historyPayload(run, r));
     } catch (e) {
       if ((e as Error).name === "AbortError") {

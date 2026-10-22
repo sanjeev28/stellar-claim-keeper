@@ -49,7 +49,7 @@ export async function keypairFromCredential(
   const english = wordlists["english"] ?? [];
   const unknown = [...new Set(parts.filter((w) => !english.includes(w)))];
   if (unknown.length > 0) {
-    throw new Error(`Not in the BIP-39 wordlist: ${unknown.slice(0, 5).join(", ")}${unknown.length > 5 ? "…" : ""} — check spelling.`);
+    throw new Error(`${unknown.length} word${unknown.length === 1 ? " is" : "s are"} not in the BIP-39 wordlist — check spelling. Passphrase words are never logged.`);
   }
   if (!validateMnemonic(words)) {
     // Some wallets (incl. certain Pi wallet exports) produce passphrases whose

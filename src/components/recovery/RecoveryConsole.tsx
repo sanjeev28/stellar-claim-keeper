@@ -158,6 +158,9 @@ export function RecoveryConsole() {
     () => configuredEndpoints(network.horizon, extraHorizons),
     [network, extraHorizons],
   );
+  // Lines actually typed in the box (trimmed, blanks dropped) — the same array the
+  // engine broadcasts to, minus the network's own endpoint that is always prepended.
+  const extraEndpoints = useMemo(() => horizons.slice(1), [horizons]);
 
   const baseFee = fees?.min ?? (network.id.startsWith("pi") ? 100000 : 100);
   const tierFees: Record<Exclude<Tier, "custom">, number> = {
@@ -471,7 +474,7 @@ export function RecoveryConsole() {
               <div className="space-y-1.5"><Label>Burst interval (ms)</Label><Input type="number" value={burstMs} onChange={(e) => setBurstMs(e.target.value)} /></div>
             </div>
             <div className="space-y-2 border-y py-4">
-              <Label htmlFor="extra-endpoints" className="text-primary">Additional endpoints — parallel broadcast ({horizons.length} active)</Label>
+              <Label htmlFor="extra-endpoints" className="text-primary">Additional endpoints — parallel broadcast ({extraEndpoints.length} active · {horizons.length} total)</Label>
               <Textarea id="extra-endpoints" rows={3} className="text-sm" placeholder={ENDPOINT_HINTS.join("\n")} value={extraHorizons} onChange={(e) => setExtraHorizons(e.target.value)} />
               <p className="text-xs text-muted-foreground">One per line. Every endpoint receives the same signed envelope at the same moment. Example core nodes: {ENDPOINT_HINTS.join(", ")}</p>
               {horizons.some((h) => h.startsWith("http://")) && typeof window !== "undefined" && window.location.protocol === "https:" && (

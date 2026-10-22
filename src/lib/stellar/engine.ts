@@ -207,7 +207,7 @@ export class RecoveryEngine {
   private servers: Horizon.Server[];
   constructor(private cfg: EngineConfig, private log: Logger) {
     validateEndpoints(cfg.horizons);
-    this.servers = cfg.horizons.map((h) => new Horizon.Server(h));
+    this.servers = cfg.horizons.map((h) => new Horizon.Server(h, { allowHttp: h.startsWith("http://") }));
   }
 
   stop() { this.abort.abort(); this.broadcastAbort.abort(); }
